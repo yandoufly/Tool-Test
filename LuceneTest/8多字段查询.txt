@@ -1,0 +1,31 @@
+1、代码如下
+
+@Test
+public void findAll() throws Exception {
+	String keywords = "机构";
+	List<Article> articleList = new ArrayList<Article>();
+	
+	//单字段搜索
+	//QueryParser queryParser = new QueryParser(LuceneUtil.getVersion(), "content", LuceneUtil.getAnalyzer());
+	
+	//多字段搜索
+	String[] fields = {"title", "content"};
+	QueryParser queryParser = new MultiFieldQueryParser(LuceneUtil.getVersion(), fields , LuceneUtil.getAnalyzer());
+	
+	Query query = queryParser.parse(keywords);
+	IndexSearcher indexSearcher = new IndexSearcher(LuceneUtil.getDirectory());
+	
+	
+	 TopDocs topDocs = indexSearcher.search(query , 10);
+	for(int i = 0; i < topDocs.scoreDocs.length; i++){
+		ScoreDoc scoreDoc = topDocs.scoreDocs[i];
+		int no = scoreDoc.doc;
+		Document document = indexSearcher.doc(no);
+		Article article = (Article) LuceneUtil.document2JavaBean(document, Article.class);
+		articleList.add(article);
+	}
+	
+	for(Article a : articleList){
+		System.out.println(a);
+	}
+}

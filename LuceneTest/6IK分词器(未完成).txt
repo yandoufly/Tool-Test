@@ -1,0 +1,4 @@
+1、导入jar包
+IKAnalyzer3.2.0Stable.jar
+
+2、引入IKAnalyzer.cfg.xml(存放在src目录下)

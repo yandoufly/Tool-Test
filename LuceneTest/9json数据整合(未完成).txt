@@ -1,0 +1,60 @@
+1. 测试json数据
+1.1 javabean转换成json数据：
+	JSONArray jsonArray = JSONArray.fromObject(user);
+	String jsonJAVA = jsonArray.toString();
+	System.out.println(jsonJAVA);
+1.2 list转换成json数据：
+	JSONArray jsonArray = JSONArray.fromObject(userList);
+	String jsonJAVA = jsonArray.toString();
+	System.out.println(jsonJAVA);
+1.3 map转换成json数据：
+	JSONArray jsonArray = JSONArray.fromObject(map);
+	String jsonJAVA = jsonArray.toString();
+	System.out.println(jsonJAVA);
+
+
+
+2. servlet整合json+easyui设计：
+2.1 编写servlet
+doPost(){
+	request.setCharacterEncoding("UTF-8");
+	//当前页号
+	String page = request.getParameter("page");
+	//需要显示的记录数
+	String rows = request.getParameter("rows");
+	
+	//map数据
+	Map<String,Object> map = new LinkedHashMap<String,Object>();
+	map.put("total",userList.size());
+	map.put("rows",userList);
+	
+	JSONArray jsonArray = JSONArray.fromObject(map);
+	String jsonJAVA = jsonArray.toString();
+	jsonJAVA = jsonJAVA.substring(1,jsonJAVA.length()-1);
+
+	//流的形式
+	response.setContentType("text/html;charset=UTF-8");
+	PrintWriter pw = response.getWriter();
+	pw.write(jsonJAVA);
+	pw.flush();
+	pw.close();
+}
+
+2.2 在jsp中
+	<table id="dg"></table>
+	<script type="text/javascript">
+		$("#dg").datagrid({
+			url : "${pageContext.request.contextPath}/UserServlet?time="+new Date().getTime(),
+			columns :  [[    
+					        	{field:'id',title:'编号',width:100},    
+					        	{field:'name',title:'姓名',width:100},    
+					        	{field:'sal',title:'薪水',width:100},
+					        	{field:'sex',title:'性别',width:100}       
+						]],
+			fitColumns : true,
+			singleSelect : true,
+			pagination : true,
+			pageSize : 2,
+			pageList : [2,4]		    
+		});
+	</script>

@@ -1,0 +1,314 @@
+1.建立实体类
+class Article{
+	private Integer id;//编号
+	private String title;//标题
+	private String content;//内容
+	get/set方法
+}
+
+2. 编写lucene工具类
+public class LuceneUtil {
+	private static Directory directory;
+	private static Version version;
+	private static Analyzer analyzer;
+	private static MaxFieldLength maxFieldLength;
+	
+	//get方法
+	private LuceneUtil(){}	//不让外界new该帮助类
+	
+	static{
+		try{
+			directory =  FSDirectory.open(new File("E:/IndexDB"));
+			version = Version.LUCENE_30;
+			analyzer = new StandardAnalyzer(version);
+			maxFieldLength = MaxFieldLength.LIMITED;
+		}catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		}
+	}
+	
+	//将JavaBean转成Document对象
+	public static Document javabean2document(Object obj) throws Exception{
+		Document document = new Document(); //创建Docuemnt对象
+		Class clazz = obj.getClass(); //获取obj引用的对象字节码
+		java.lang.reflect.Field[] reflectFields = clazz.getDeclaredFields(); //通过对象字节码获取私有的属性
+		for(java.lang.reflect.Field reflectField : reflectFields){
+			reflectField.setAccessible(true); //强力反射
+			String name = reflectField.getName(); //获取属性名，id/title/content
+			String methodName = "get" + name.substring(0,1).toUpperCase()+name.substring(1); //人工拼接方法名
+			Method method = clazz.getMethod(methodName,null); //获取方法，例如：getId()/getTitle()/getContent()
+			String value = method.invoke(obj,null).toString(); //执行方法
+			document.add(new Field(name,value,Store.YES,Index.ANALYZED)); //加入到Document对象中去，这时javabean的属性与document对象的属性相同
+		}
+		return document;
+	}
+	
+	//将Document对象转成JavaBean对象
+	public static Object document2javabean(Document document,Class clazz) throws Exception{
+		Object obj = clazz.newInstance();
+		java.lang.reflect.Field[] reflectFields = clazz.getDeclaredFields();
+		for(java.lang.reflect.Field reflectField : reflectFields){
+			reflectField.setAccessible(true);
+			String name = reflectField.getName();//id/title/content
+			String value = document.get(name);//1/培训/传智是一家培训机构
+			BeanUtils.setProperty(obj,name,value);//封装javabean对应的属性中去，通过setXxx()方法
+		}
+		return obj;
+	}
+}
+
+3. 建立索引库的内容
+public void add() throws Exception{
+	Article article = new Article(7,"培训","西大是一家华南地区it培训机构",30);
+	Document document = LuceneUtil.javabean2document(article); //将javabean转换成document对象
+	IndexWriter indexWriter = new IndexWriter(LuceneUtil.getDirectory()	,LuceneUtil.getAnalyzer(),LuceneUtil.getMaxFieldLength());
+	indexWriter.addDocument(document);
+	indexWriter.close();
+}
+
+4. 编写ArticleDao
+public class ArticleDao {
+	/**
+	 * 根据关键字，获取总记录数
+	 * @return 总记录数
+	 */
+	public int getAllRecord(String keywords) throws Exception{
+		QueryParser queryParser = new QueryParser(LuceneUtil.getVersion(),"content",LuceneUtil.getAnalyzer());
+		Query query = queryParser.parse(keywords);
+		IndexSearcher indexSearcher = new IndexSearcher(LuceneUtil.getDirectory());
+		TopDocs topDocs = indexSearcher.search(query,2);
+		//返回符合条件的真实总记录数，不受2的影响
+		return topDocs.totalHits;
+	}
+	/**
+	 * 根据关键字，批量查询记录
+	 * @param start 从第几条记录的索引号开始查询，索引号从0开始
+	 * @param size  最多查询几条记录，不满足最多数目时，以实际为准
+	 * @return 集合
+	 */
+	public List<Article> findAll(String keywords,int start,int size) throws Exception{
+		List<Article> articleList = new ArrayList<Article>();
+		
+		QueryParser queryParser = new QueryParser(LuceneUtil.getVersion(),"content",LuceneUtil.getAnalyzer());
+		Query query = queryParser.parse(keywords);
+		IndexSearcher indexSearcher = new IndexSearcher(LuceneUtil.getDirectory());
+		TopDocs topDocs = indexSearcher.search(query,100);
+		//小技巧
+		int middle = Math.min(start+size,topDocs.totalHits);
+		for(int i=start;i<middle;i++){
+			ScoreDoc scoreDoc = topDocs.scoreDocs[i];
+			int no = scoreDoc.doc;
+			Document document = indexSearcher.doc(no);
+			Article article = (Article) LuceneUtil.document2javabean(document,Article.class);
+			articleList.add(article);
+		}
+		
+		return articleList;
+	}
+	
+
+	
+	
+	
+	public static void main(String[] args) throws Exception{
+		ArticleDao dao = new ArticleDao();
+		System.out.println(dao.getAllRecord("培训"));
+		
+		System.out.println("------------------------------");
+		
+		System.out.println("第一页");
+		List<Article> list = dao.findAll("培训",0,2);
+		for(Article a : list){
+			System.out.println(a);
+		}
+		System.out.println("第二页");
+		list = dao.findAll("培训",2,2);
+		for(Article a : list){
+			System.out.println(a);
+		}
+		System.out.println("第三页");
+		list = dao.findAll("培训",4,2);
+		for(Article a : list){
+			System.out.println(a);
+		}
+		System.out.println("第四页");
+		list = dao.findAll("培训",6,2);
+		for(Article a : list){
+			System.out.println(a);
+		}
+	}
+}
+
+5. 编写分页类：Page
+	private Integer currPageNO;//当前页号OK
+	private Integer perPageSize = 2;//每页显示记录数，默认为2条OK
+	private Integer allRecordNO;//总记录数OK
+	private Integer allPageNO;//总页数OK
+	private List<Article> articleList = new ArrayList<Article>();//内容OK
+
+
+6. 编写ArticleService
+public class ArticleService {
+	//持久层
+	private ArticleDao articleDao = new ArticleDao();
+	/**
+	 * 根据关键字和页号，查询内容
+	 */
+	public Page show(String keywords,int currPageNO) throws Exception{
+		Page page = new Page();
+		
+		page.setCurrPageNO(currPageNO); //封装当前页号
+		int allRecordNO = articleDao.getAllRecord(keywords); //封装总记录数
+		page.setAllRecordNO(allRecordNO);
+		
+		//封装总页数
+		int allPageNO = 0;
+		if(page.getAllRecordNO() % page.getPerPageSize() == 0){
+			allPageNO = page.getAllRecordNO() / page.getPerPageSize();
+		}else{
+			allPageNO = page.getAllRecordNO() / page.getPerPageSize() + 1;
+		}
+		page.setAllPageNO(allPageNO);
+		
+		//封装内容
+		int size = page.getPerPageSize();
+		int start = (page.getCurrPageNO()-1) * size;
+		List<Article> articleList = articleDao.findAll(keywords,start,size);
+		page.setArticleList(articleList);
+		
+		return page;
+	}
+	
+	//测试
+	public static void main(String[] args) throws Exception{
+		ArticleService test = new ArticleService();
+		Page page = test.show("培训",4);
+		
+		System.out.println(page.getCurrPageNO());
+		System.out.println(page.getPerPageSize());
+		System.out.println(page.getAllRecordNO());
+		System.out.println(page.getAllPageNO());
+		for(Article a : page.getArticleList()){
+			System.out.println(a);
+		}
+	}
+}
+
+7. 编写ArticleServlet
+	public void doPost(HttpServletRequest request, HttpServletResponse response)throws ServletException, IOException {
+		try {
+			request.setCharacterEncoding("UTF-8");
+			
+			
+			String keywords = request.getParameter("keywords"); //获取关键字
+			if(keywords == null || keywords.trim().length()==0){
+				keywords = "培训";//默认值
+			}
+			
+			//获取当前页号
+			String temp = request.getParameter("page");//核心
+			if(temp == null || temp.trim().length()==0){
+				temp = "1";//默认值
+			}
+				
+			//调用业务层
+			ArticleService articleService = new ArticleService(); 
+			Page page = articleService.show(keywords,Integer.parseInt(temp));
+			
+			//构造Map对象
+			Map<String,Object> map = new LinkedHashMap<String,Object>();
+			map.put("total",page.getAllRecordNO());
+			map.put("rows",page.getArticleList());
+			
+			//第三方工具将Map转成JSON
+			JSONArray jsonArray = JSONArray.fromObject(map);
+			String jsonJAVA = jsonArray.toString();
+			jsonJAVA = jsonJAVA.substring(1,jsonJAVA.length()-1); //去掉二边的[]符号
+			
+			//以IO的流方式响应到DataGrid组件
+			response.setContentType("text/html;charset=UTF-8");
+			PrintWriter pw = response.getWriter();
+			pw.write(jsonJAVA);
+			pw.flush();
+			pw.close();
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		}
+	}
+
+8. list.jsp
+<%@ page language="java" pageEncoding="UTF-8"%>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+  <head>
+    <title>使用Jsp +Js + Jquery + EasyUI + Servlet + Lucene，完成分页</title>
+    <!-- 引入css文件，无顺序 -->
+    <link rel="stylesheet" href="themes/icon.css" type="text/css"></link>
+    <link rel="stylesheet" href="themes/default/easyui.css" type="text/css"></link>
+  	<!-- 引入js文件，有顺序 -->
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+	<script type="text/javascript" src="js/easyui-lang-zh_CN.js"></script>
+  </head>
+  <body>
+
+
+	<!-- 输入区 -->
+	<form id="myformID">
+		输入关键字：<input type="text" value="" id="keywordID"/>
+		<input type="button" value="站内搜索" id="findID"/>
+	</form>
+	<script type="text/javascript">
+		//定位"站内搜索"按钮
+		$("#findID").click(function(){
+			//获取关键字
+			var keyword = $("#keywordID").val();
+			//去空格
+			keyword = $.trim(keyword);
+			//判断
+			if(keyword.length == 0){
+				//提示
+				alert("请输入关键字!!!");
+				//清空文本框的内容
+				$("#keywordID").val("");
+				//定位于输入关键字文本框
+				$("#keywordID").focus();
+			}else{
+				//异步发送请求到服务器
+				//load表示方法名
+				//"keywords"表示需要发送的的参数名，后台收：request.getParameter("keywords")
+				//keyword表示参数值
+				$("#dg").datagrid("load",{    
+				    "keywords" : keyword
+				});  
+			}
+		});
+	</script>
+	
+	
+
+	<!-- 显示区 -->
+	<table id="dg"></table>
+	<script type="text/javascript">
+		$("#dg").datagrid({
+			url : "${pageContext.request.contextPath}/ArticleServlet?time="+new Date().getTime(),
+			columns :  [[    
+					        	{field:'id',title:'编号',width:100},    
+					        	{field:'title',title:'标题',width:100},    
+					        	{field:'content',title:'内容',width:100}
+						]],
+			fitColumns : true,
+			singleSelect : true,
+			pagination : true,
+			pageSize : 2,
+			pageList : [2]		    
+		});
+	</script>
+	
+  </body>
+</html>
+
+

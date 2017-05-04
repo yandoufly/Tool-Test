@@ -1,0 +1,284 @@
+1、编写Article实体类与分页类
+public class Article {
+	private Integer id; //编号
+	private String title; //标题
+	private String content; //内容
+}
+
+2、编写分页类
+public class Page {
+	private Integer currPageNO; //当前页
+	private Integer perPageSize = 2; //每页显示记录数，默认为2
+	private Integer allRecordNO; //总记录数
+	private Integer allPageNO; //总页数
+	private List<Article> articleList = new ArrayList<Article>();
+}
+
+3、编写ArticleDao类
+public class ArticleDao {
+	/**
+	 * 根据关键字，获取总记录数
+	 * @return 总记录数
+	 */
+	public int getAllRecord(String keywords) throws Exception {
+		List<Article> articleList = new ArrayList<Article>();
+		QueryParser queryParser = new QueryParser(LuceneUtil.getVersion(),"content",LuceneUtil.getAnalyzer());
+		Query query = queryParser.parse(keywords);
+		IndexSearcher indexSearcher = new IndexSearcher(LuceneUtil.getDirectory());
+		TopDocs topDocs = indexSearcher.search(query, 2);
+		//返回符合条件的真实总记录数，不受2的影响
+		return topDocs.totalHits;
+		//返回符合条件的真实总记录数，受2的影响
+//		return topDocs.scoreDocs.length;
+	}
+	
+	/**
+	 * 根据关键字，批量查询记录
+	 * @param start 从第几条记录的索引号开始查询，索引号从0号开始
+	 * @param size 最多查询几条记录，不满足最多数目时已实际为准
+	 * @return Article集合
+	 */
+	public List<Article> findAll(String keywords, int start, int size) throws Exception {
+		List<Article> list = new ArrayList<Article>();
+		
+		QueryParser queryParser = new QueryParser(LuceneUtil.getVersion(),"content",LuceneUtil.getAnalyzer());
+		Query query = queryParser.parse(keywords);
+		IndexSearcher indexSearcher = new IndexSearcher(LuceneUtil.getDirectory());
+		TopDocs topDocs = indexSearcher.search(query, 100);
+		
+		int middle = Math.min(start+size, topDocs.totalHits);
+		for(int i = start; i < middle; i++){
+			ScoreDoc scoreDoc = topDocs.scoreDocs[i];
+			int no = scoreDoc.doc;
+			Document document = indexSearcher.doc(no);
+			Article article = (Article) LuceneUtil.document2JavaBean(document, Article.class);
+			list.add(article);
+		}
+		return list;
+	}
+	
+	public static void main(String[] args) throws Exception {
+		ArticleDao dao = new ArticleDao();
+//		System.out.println(dao.getAllRecord("培训"));
+//		
+//		System.out.println("-------------");
+		System.out.println("第一页");
+		List<Article> list1 = dao.findAll("培训", 0, 2);
+		for(Article a : list1){
+			System.out.println(a);
+		}
+		
+		System.out.println("第二页");
+		List<Article> list2 = dao.findAll("培训", 2, 2);
+		for(Article a : list2){
+			System.out.println(a);
+		}
+		
+		System.out.println("第三页");
+		List<Article> list3 = dao.findAll("培训", 4, 2);
+		for(Article a : list3){
+			System.out.println(a);
+		}
+		
+		System.out.println("第四页");
+		List<Article> list4 = dao.findAll("培训", 6, 2);
+		for(Article a : list4){
+			System.out.println(a);
+		}
+		
+	}
+}
+
+
+4、编写ArticleService
+public class ArticleService {
+	
+	//持久层
+	private ArticleDao articleDao = new ArticleDao();
+	
+	/**
+	 * 根据关键字和页号，查询内容
+	 */
+	public Page show(String keywords, int currPageNO) throws Exception {
+		Page page = new Page();
+		
+		//封装当前页号
+		page.setCurrPageNO(currPageNO);
+		
+		//封装总记录数
+		int allRecordNO = articleDao.getAllRecord(keywords);
+		page.setAllRecordNO(allRecordNO);
+		
+		//封装总页数
+		int allPageNO = 0;
+		if(page.getAllRecordNO()%page.getPerPageSize() == 0){
+			allPageNO = page.getAllRecordNO() / page.getPerPageSize();
+		}else{
+			allPageNO = page.getAllRecordNO() / page.getPerPageSize() + 1;
+		}
+		page.setAllPageNO(allPageNO);
+		
+		//封装内容
+		int size = page.getPerPageSize();
+		int start = (page.getCurrPageNO()-1) * size;
+		List<Article> articleList = articleDao.findAll(keywords, start, size);
+		page.setArticleList(articleList);
+		
+		return page;
+	}
+	
+	public static void main(String[] args) throws Exception {
+		ArticleService service = new ArticleService();
+		Page page = service.show("培训", 4);
+		
+		for(Article a : page.getArticleList()){
+			System.out.println(a);
+		}
+		
+	}
+}
+
+
+5、编写ArticleServlet
+@WebServlet("/ArticleServlet")
+public class ArticleServlet extends HttpServlet {
+	private static final long serialVersionUID = 1L;
+	
+	@Override
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) 
+			throws ServletException, IOException {
+		doPost(request, response);
+	}
+	@Override
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) 
+			throws ServletException, IOException {
+		
+		request.setCharacterEncoding("utf-8");
+		
+		try {
+			//获取关键字
+			String keywords = request.getParameter("keywords");
+			if(keywords==null || keywords.trim().length()==0){
+				keywords = "培训";
+			}
+			//获取当前号
+			String temp = request.getParameter("currPageNO");
+			if(temp==null || temp.trim().length()==0){
+				temp = "1";
+			}
+			
+			//调用业务层
+			ArticleService articleService = new ArticleService();
+			Page page = articleService.show(keywords, Integer.parseInt(temp));
+			
+			request.setAttribute("page", page);  //回显数据
+			request.setAttribute("KEYWORDS", keywords); //将关键字绑定到原来页面
+			request.getRequestDispatcher("/index.jsp").forward(request, response); //转发
+		}catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+	}
+}
+
+6、编写页面
+<body>
+<center>
+	<!-- 输入区 -->
+	<form action="${pageContext.request.contextPath}/ArticleServlet" method="post">
+		<input type="hidden" name="currPageNO" value="1">
+		<table border="2" align="center">
+			<tr>
+				<td>输入关键字</td>
+				<td><input type="text" name="keywords" value="${KEYWORDS}" maxlength="10"></td>
+				<td><input id="search" type="button" value="站内搜索"></td>
+			</tr>
+		</table>
+	</form>
+	<script type="text/javascript">
+		//去空格
+		function trim(str){ 
+			//"    培训        "
+			//先去掉左边空格
+			str = str.replace(/^\s*/,"");
+			//去掉右边空格
+			str = str.replace(/\s*$/,"");
+			return str;
+		}
+		
+	
+		//定位站内搜索
+		document.getElementById("search").onclick = function(){
+			//定位表单
+			var formElement = document.forms[0];
+			//获取关键字
+			var keywords = formElement.keywords.value;
+			//去空格
+			keywords = trim(keywords);
+			//判断长度
+			if(keywords.length == 0){
+				alert("请输入关键字");
+			}else{
+				//提交表单
+				formElement.submit();
+			}
+		}
+		
+	</script>
+	
+	
+	<!-- 显示区 -->
+	<table border="2" align="center" width="70%">
+		<tr>
+			<td>编号</td>
+			<td>标题</td>
+			<td>内容</td>
+		</tr>
+		<c:forEach var="a" items="${requestScope.page.articleList }">
+		<tr>
+			<td>${a.id}</td>
+			<td>${a.title}</td>
+			<td>${a.content}</td>
+		</tr>
+		</c:forEach>
+		<tr >
+			<th colspan="3" align="center">
+				<a onclick="fenye(1)" style="cursor:hand;color:blue;text-decoration:underline">首页</a> &nbsp;&nbsp;
+				
+				<c:choose>
+					<c:when test="${requestScope.page.currPageNO+1 <= requestScope.page.allPageNO }">
+						<a onclick="fenye(${requestScope.page.currPageNO+1})" style="cursor:hand;color:blue;text-decoration:underline">下一页</a> &nbsp;&nbsp;
+					</c:when>
+					<c:otherwise>
+						下一页						
+					</c:otherwise>
+				</c:choose>
+
+				<c:choose>
+					<c:when test="${requestScope.page.currPageNO-1 >= 1}">
+						<a onclick="fenye(${requestScope.page.currPageNO-1})" style="cursor:hand;color:blue;text-decoration:underline">上一页</a> &nbsp;&nbsp;
+					</c:when>
+					<c:otherwise>
+						上一页						
+					</c:otherwise>
+				</c:choose>
+				
+				
+				<a onclick="fenye(${requestScope.page.allPageNO})" style="cursor:hand;color:blue;text-decoration:underline">末页</a>
+			</th>			
+		</tr>
+	</table>
+	<script type="text/javascript">
+		function fenye(currPageNO){
+			//定位表单
+			var formElement = document.forms[0];
+			//修改当前页号
+			formElement.currPageNO.value = currPageNO;
+			
+			//提交表单
+			formElement.submit();
+		}
+	</script>
+</center>
+</body>
