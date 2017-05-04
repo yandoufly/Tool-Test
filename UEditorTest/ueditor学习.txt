@@ -1,0 +1,26 @@
+ueditor图片、视频、文件等资源存放在虚拟路径(而并非存放在tomcat服务器中)设置：
+注：我的项目名称是：MyUeditor
+	Eclipse中workspace的磁盘路径：D:\workspace\MyUeditor
+	tomcat服务器的磁盘路径：D:\apache-tomcat-8.0.32\webapps\MyUeditor
+	目前我想将ueditor上传的资源全部存放到 D:\workspace\MyUeditor 路径中去，而并非上传到tomcat服务器中
+
+1）导入ueditor相关资源
+2）打开ueditor\jsp\controller.jsp,将改为 rootPath = "D:/workspace/MyUeditor/WebContent";
+3）打开ueditor\jsp\config.json
+	"imageUrlPrefix": "http://localhost:8088/MyUeditor", //图片
+	"imagePathFormat": "/upload/ueditor/images/{yyyy}{mm}{dd}/{time}{rand:6}",
+
+	"videoUrlPrefix": "http://localhost:8088/MyUeditor", //视频
+	"videoPathFormat": "/upload/ueditor/videos/{yyyy}{mm}{dd}/{time}{rand:6}",
+
+	"fileUrlPrefix": "http://localhost:8088/MyUeditor", //文件
+	"filePathFormat": "/upload/ueditor/files/{yyyy}{mm}{dd}/{time}{rand:6}", 
+4）打开tomcat中的server.xml文件
+	在<Host></Host>中添加语句：<Context docBase="D:\workspace\MyUeditor\WebContent\upload\ueditor" path="/MyUeditor/upload/ueditor"/>
+
+	注：tomcat配置在Eclipse时，在server.xml是D:\workspace\Servers\Tomcat v8.0 Server at localhost-config\server.xml(因为每次运行eclipse都会刷新原本tomcat里面的内容)
+
+5）测试
+	上传的图片已存放在:D:\workspace\MyUeditor\WebContent\upload\ueditor\images中
+	上传的视频已存放在:D:\workspace\MyUeditor\WebContent\upload\ueditor\videos中
+	上传的文件已存放在:D:\workspace\MyUeditor\WebContent\upload\ueditor\files中

@@ -1,0 +1,18 @@
+tomcat的虚拟目录的映射：
+    虚拟目录映射，就是将web应用交给web服务器管理，然后就可以通过web服务器访问到这个资源。假设现在有一个专门用于发布新闻的web应用news，其位于c盘下，那么，如果配置tomcat，使得当我们访问tomcat服务器时会访问到news里的资源。
+     方式一、tomcat的自动映射，将news应用直接放在  tomcat主目录/webapps/，便可直接访问:http://localhost:8080/news/index.html
+  
+     方式二、很多情况下，在实际的部署中，有可能web应用与tomcat服务器不在同一盘符下，即web应用没办法直接放在webapps目录下，这时就需要建立虚拟目录映射，以下介绍几种方法。
+ 
+        1、在server.xml中配置web应用的目录映射。
+           配置tomcat主目录/conf/server.xml
+          对应的<Host>中加入<Context path="/java4fun" docBase="c:\news"  />  path为web应用的访问路径，docBase为web应用的实际路径。配置后重启tomcat便可访问:http://localhost:8080/java4fun/index.html。这种方法并不是官方所推荐的方法，因为配置server.xml后需要重启tomcat才能加载web应用。
+ 
+       2、在tomcat目录下的conf\Catalina\localhost目录中，创建一个用访问路径来命名的xml文件，比如hellojava.xml
+          在java.xml文件中添加<Context docBase="c:\news"/>，此方法不用指定path，因为path的值就是xml的文件名，配置后不用重启便可访问：http://localhost:8080/hellojava/index.html。
+ 
+       3、多级目录映射，方法同2，只需将xml的文件命名为java#myweb.xml，便可访问：http://localhost:8080/java/myweb/1.html
+         
+       4、 缺省映射，将xml文件名命名为ROOT.xml，则该web应用将被作为默认的web应用来访问，所以可以直接访问：http://localhost:8080/index.html
+
+

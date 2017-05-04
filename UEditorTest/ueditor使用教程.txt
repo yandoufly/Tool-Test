@@ -1,0 +1,174 @@
+下载：http://download.csdn.net/detail/jk33220/5798407
+
+测试一：
+新建javaweb项目，将项目转换为utf-8格式
+打开editor_config.js，在这个配置文件的29行，找到URL= window.UEDITOR_HOME_URL||"/t/ueditor/";这句话，改成‘URL= window.UEDITOR_HOME_URL||"/项目名/ueditor/’
+即：‘URL= window.UEDITOR_HOME_URL||"/a/ueditor/’；
+
+接着修改index.jsp文件，在<head/>上面加入引用的js包和css样式代码：
+<script type="text/javascript" charset="utf-8" src="./ueditor/editor_config.js"></script>  
+<script type="text/javascript" charset="utf-8" src="./ueditor/editor_all.js"></script>  
+<LINK rel=stylesheet href="ueditor/themes/default/ueditor.css">  
+在body部分：
+<textarea id="newsEditor" name="content"> </textarea><br>
+<script type="text/javascript"> 
+	UE.getEditor('newsEditor');  
+</script>
+
+
+测试二：
+UEditor的开发部署:到官方网站下载ueditor jsp（utf-8）版开发包。ueditor1_2_5_0-utf8-jsp
+在index.jsp页面中：
+<scripttype="text/javascript"src="ueditor/editor_config.js"></script>
+<scripttype="text/javascript"src="ueditor/editor_all.js"></script>
+<link rel=stylesheethref="ueditor/themes/default/css/ueditor.css">
+
+<formaction="publish.action"method="post">
+	<textareaname="content"id="myEditor">这里写你的初始化内容</textarea>
+	<scripttype="text/javascript">
+		UE.getEditor('myEditor'); //1.2.4以后可以使用一下代码实例化编辑器
+	</script>
+</form>
+
+配置editor_config.js文件
+找到：URL = window.UEDITOR_HOME_URL||tmp.substr(0,tmp.lastIndexOf("\/")+1).replace("_examples/","").replace("website/","");
+将其改为： URL = window.UEDITOR_HOME_URL||"/UEditorCase/ueditor/";
+
+在show.jsp中：
+内容为：<br>
+${requestScope.content}
+
+
+测试三：编辑旧文章
+在update.jsp页面中：
+<scripttype="text/javascript"src="ueditor/editor_config.js"></script>
+<scripttype="text/javascript"src="ueditor/editor_all.js"></script>
+<LINKrel=stylesheethref="ueditor/themes/default/css/ueditor.css">
+
+编辑文章：<br/>
+<script type="text/plain" id="myEditor" name="content">
+	${requestScope.content}
+</script>
+
+<scripttype="text/javascript">
+	var editor =new UE.ui.Editor();
+	editor.render("myEditor");
+
+	//1.2.4以后可以使用一下代码实例化编辑器
+	//UE.getEditor('myEditor')
+</script>
+
+
+测试三：图片上传与附件上传
+将jsp文件夹下的Uploader.java类拷贝到ueditor类包中
+上传文件时，文件是保存在：/UeditorCase/ueditor/jsp/upload/      文件夹下
+注：只需按上述步骤，不用修改imageUp.jsp和fileUp.jsp等文件。（可以根据需要修改文件保存路径和上传的文件类型）
+
+
+上传文件大小的配置：
+1. ueditor\dialogs\video\video.js   搜索  file_size_limit  修改这个数值（这是前台 flash的限制）
+2. ueditor\jsp\fileUp.jsp   setMaxSize  修改这个数值
+
+上传图片的路径修改
+初始的图片路径是  upload1
+1. ueditor\jsp\config.properties   修改 savePath=upload_photo
+2. ueditor\ueditor.config.js    修改 savePath: [ 'upload_photo' ] 
+
+
+可以通过调整editor所跟随的textarea的宽高来撑开editor的大小
+
+在ueditor/jsp/config.json中定义图片上传地址
+ -在imagePathFormat 中设置地址 例如：/upload/ueditor/image/{yyyy}{mm}{dd}/{time}{rand:6}
+ -imageUrlPrefix ：设置图片访问前缀 例如：http://localhost:8088/Test
+
+目前遇到的问题：
+
+ueditor 百度富文本框上传视频不显示：
+ 坑爹的百度富文本框，具体使用我就不说了，我使用的是jsp utf-8的，解决一个bug，上传视频不显示问题，
+具体修改代码：文件，ueditor.all.js，17769行
+html.push(creatInsertStr( vi.url, vi.width || 420,  vi.height || 280, id + i, null, cl, 'image'));修改为
+html.push(creatInsertStr( vi.url, vi.width || 420,  vi.height || 280, id + i, null, cl, 'video'));
+7343,7344,7346行，注释掉代码：var root = UE.htmlparser(html);
+            me.filterInputRule(root);
+            html = root.toHtml();
+还有一个bug上传音乐不播放问题，有待修改
+
+
+
+ueditor使用教程(上传图片/视频/文件到指定路径)：********
+步骤一：新建MyUeditor项目，将项目编码改为UTF-8，在项目中新建upload/ueditor/(files|images|videos)三个文件夹
+步骤二：引入ueditor的全部文件，将jsp目录下的lib所有jar包引入项目的lib文件夹中
+步骤三：修改ueditor其jsp目录下的controller.jsp文件
+<%
+
+    request.setCharacterEncoding( "utf-8" );
+	response.setHeader("Content-Type" , "text/html");
+	
+	String rootPath = application.getRealPath( "/" );
+	rootPath = "D:/workspace/MyUeditor/WebContent";  //新增语句(其路径为项目的绝对工作路径)
+	out.write( new ActionEnter( request, rootPath ).exec() );
+	
+%>
+
+步骤四：修改ueditor其jsp目录下的config.json
+	/* 上传图片配置项 */
+	"imageUrlPrefix": "http://localhost:8088/MyUeditor", /* 图片访问路径前缀 */
+	"imagePathFormat": "/upload/ueditor/images/{yyyy}{mm}{dd}/{time}{rand:6}", /* 上传保存路径 */
+
+	/* 涂鸦图片上传配置项 */
+	"scrawlPathFormat": "/upload/ueditor/images/{yyyy}{mm}{dd}/{time}{rand:6}", /* 上传保存路径 */
+	"scrawlUrlPrefix": "http://localhost:8088/MyUeditor", /* 图片访问路径前缀 */
+
+	/* 上传视频配置 */
+	"videoUrlPrefix": "http://localhost:8088/MyUeditor", /* 视频访问路径前缀 */
+	"videoPathFormat": "/upload/ueditor/videos/{yyyy}{mm}{dd}/{time}{rand:6}", /* 上传保存路径 */
+
+	/* 上传文件配置 */
+	"filePathFormat": "/upload/ueditor/files/{yyyy}{mm}{dd}/{time}{rand:6}", /* 上传保存路径 */
+	"fileUrlPrefix": "http://localhost:8088/MyUeditor", /* 文件访问路径前缀 */
+
+步骤五(重要)：在自己的eclipse下的项目路径workspace中找到Server/Tomcat v8.0/server.xml在<Host>中添加:
+<Host appBase="webapps" autoDeploy="true" name="localhost" unpackWARs="true">
+
+    <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs" pattern="%h %l %u %t &quot;%r&quot; %s %b" prefix="localhost_access_log" suffix=".txt"/>
+
+    <Context docBase="D:\workspace\MyUeditor\WebContent\upload\ueditor" path="/MyUeditor/upload/ueditor"/> <!-- 新增语句 -->
+</Host>
+
+步骤六：编辑index.jsp
+	<script type="text/javascript" charset="utf-8" src="js/ueditor/ueditor.config.js"></script>
+	<script type="text/javascript" charset="utf-8" src="js/ueditor/ueditor.all.min.js"> </script>
+	<script type="text/javascript" charset="utf-8" src="js/ueditor/lang/zh-cn/zh-cn.js"></script>
+
+	<form action="newsServlet" method="post" >
+		这里编写新闻内容：<br>
+		<script id="container" name="content" type="text/plain">这里写你的初始化内容</script>  
+		<script type="text/javascript">  
+			var editor = UE.getEditor('container'); 
+		</script>
+		<br> 
+		<input type="submit">
+	</form> 
+
+步骤七：新建newsServlet的servlet类，内容如下：
+	request.setCharacterEncoding("UTF-8");
+	String content = request.getParameter("content");
+	System.out.println(content);
+	
+	request.setAttribute("content", content);
+	request.getRequestDispatcher("test.jsp").forward(request, response);
+
+步骤八：新建suc.jsp文件
+<title>Insert title here</title>
+	<script type="text/javascript" charset="utf-8" src="js/ueditor/ueditor.config.js"></script>
+	<script type="text/javascript" charset="utf-8" src="js/ueditor/ueditor.all.min.js"> </script>
+	<script type="text/javascript" charset="utf-8" src="js/ueditor/lang/zh-cn/zh-cn.js"></script>
+	<!-- 添加video支持 -->
+	<link type="text/css" rel="stylesheet" href="js/ueditor/third-party/video-js/video-js.css"/>
+	<script language="javascript" type="text/javascript" src="js/ueditor/third-party/video-js/video.js"></script>
+	<!-- 在页面的head部分加入如下脚本，非支持 audio/video标签浏览器使用 -->
+	<script type="text/javascript" src="js/html5media.min.js"></script>	
+</head>
+<body>
+${content}
+</body>
