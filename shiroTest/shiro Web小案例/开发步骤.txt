@@ -1,0 +1,146 @@
+开发步骤：
+1. 导入jar包：
+servlet相关：javax.servlet-api、javax.servlet.jsp-api、jstl
+日志相关：log4j、commons-logging、slf4j-api
+shiro相关：shiro-core、shiro-web
+mysql相关：mysql-connector-java
+
+2. 编写web.xml文件
+listener相关：EnvironmentLoaderListener
+shiro过滤器：ShiroFilter
+
+3. 编写log4j.properties文件
+log4j.rootLogger=DEBUG, Console  
+  
+#Console  
+log4j.appender.Console=org.apache.log4j.ConsoleAppender  
+log4j.appender.Console.layout=org.apache.log4j.PatternLayout  
+log4j.appender.Console.layout.ConversionPattern=%d [%t] %-5p [%c] - %m%n  
+  
+log4j.logger.java.sql.ResultSet=INFO  
+log4j.logger.org.apache=INFO  
+log4j.logger.java.sql.Connection=DEBUG  
+log4j.logger.java.sql.Statement=DEBUG  
+log4j.logger.java.sql.PreparedStatement=DEBUG 
+
+4. 新建实体类
+public class User {
+	private Integer id;
+	private String userName;
+	private String password;
+}
+
+创建数据库及数据库表：
+create database db_shiro default charset utf8;
+use db_shiro;
+
+--角色表
+drop table if exists t_role;
+create table t_role(
+	id int(11) auto_increment primary key,
+	roleName varchar(20) default null
+);
+
+insert into t_role(roleName) values ('admin');
+insert into t_role(roleName) values ('teacher');
+
+--权限表
+drop table if exists t_permission;
+create table t_permission(
+	id int(11) auto_increment primary key,
+	permissionName varchar(20) default null,
+	roleId int(11) default null
+);
+alter table t_permission add constraint FK_ProleId foreign key (roleId) references t_role(id);
+insert into t_permission(permissionName, roleId) values('user:*', 1);
+insert into t_permission(permissionName, roleId) values('student:*', 2);
+
+--用户表
+drop table if exists t_user;
+create table t_user(
+	id int(11) auto_increment primary key,
+	userName varchar(20) default null,
+	password varchar(20) default null,
+	roleId int(11) default null
+);
+alter table t_user add constraint FK_UroleId foreign key (roleId) references t_role(id);
+
+
+insert into t_user(userName, password, roleId) values ('admin', '123', 1);
+insert into t_user(userName, password, roleId) values ('jack', '123', 1);
+insert into t_user(userName, password, roleId) values ('marry', '123', null);
+insert into t_user(userName, password, roleId) values ('jsonk', '123', null);
+
+
+5. 新建UserDao类
+public User getByUserName(Connection con,String userName)throws Exception{} //得到用户信息
+public Set<String> getRoles(Connection con, String userName) throws Exception{} //得到角色集合
+public Set<String> getPermissions(Connection con, String userName)throws Exception{} //得到权限集合
+
+
+6. 新建自定义realm类(继承AuthorizingRealm)：
+//验证当前登录用户
+protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) 
+	throws AuthenticationException{
+	String userName = (String) token.getPrincipal();
+	User user=userDao.getByUserName(con, userName);
+	if(user!=null){
+		AuthenticationInfo authcInfo=new SimpleAuthenticationInfo(user.getUserName(),user.getPassword(),"xx");
+	return authcInfo;
+	}
+	return null;
+}
+
+//为当限前登录的用户授予角色和权
+protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals){
+	String userName=(String)principals.getPrimaryPrincipal();
+	SimpleAuthorizationInfo authorizationInfo=new SimpleAuthorizationInfo();
+	authorizationInfo.setRoles(userDao.getRoles(con,userName));
+	authorizationInfo.setStringPermissions(userDao.getPermissions(con,userName));
+	return authorizationInfo;
+}
+
+7. 在WEB-INF编写shiro.ini文件
+[main]
+authc.loginUrl=/login
+roles.unauthorizedUrl=/unauthorized.jsp
+perms.unauthorizedUrl=/unauthorized.jsp
+myRealm=com.yjy.realm.MyRealm
+securityManager.realms=$myRealm
+[urls]
+/login=anon
+/admin*=authc
+/student=roles[teacher]
+/teacher=perms["user:create"]
+
+8. 编写LoginServlet，uri为loginServlet
+doPost {
+String userName=req.getParameter("userName");
+	String password=req.getParameter("password");
+	Subject subject=SecurityUtils.getSubject();
+	UsernamePasswordToken token=new UsernamePasswordToken(userName, CryptographyUtil.md5(password, "suerfly"));
+	subject.login(token);
+	session.setAttribute("info", "session的数据");
+}
+
+9.编写jsp
+login.jsp
+<form action="login" method="post">
+	userName:<input type="text" name="userName"/><br/>
+	password:<input type="password" name="password"/><br/>
+	<input type="submit" value="登录"/>${errorInfo }
+</form>
+
+success.jsp
+${info }
+欢迎你!
+<shiro:hasRole name="admin">
+	欢迎有admin角色的用户！<shiro:principal/>
+</shiro:hasRole>
+<shiro:hasPermission name="student:create">
+	欢迎有student:create权限的用户！<shiro:principal/>
+</shiro:hasPermission>
+
+unauthorized.jsp
+认证未通过，或者权限不足
+	

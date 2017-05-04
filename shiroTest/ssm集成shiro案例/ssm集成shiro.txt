@@ -1,0 +1,392 @@
+开发步骤：
+1.新建maven项目
+ 删除maven自带的jESE环境、引入自己的tomcat和jdk环境
+
+2. 在pom.xml引入jar包
+servlet相关(3个)：servlet、servlet.jsp、jstl
+spring相关(10个)：spring-core、-beans、-tx、-context、-context-support、-web、-webmvc、-aop、-aspects、-jdbc
+mybatis相关(2个)：mybatis、mybatis-spring
+shiro相关(3个)：shiro-core、shiro-web、shiro-spring
+日志相关(2个)：log4j、slf4j-log4j12
+mysql相关(1个)：mysql
+
+3. 配置web.xml文件
+spring的配置文件：contextConfigLocation
+spring监听器：ContextLoaderListener
+springmvc配置：DispatcherServlet
+spring编码过滤：CharacterEncodingFilter
+<!-- Spring配置文件:指定applicationContext.xml文件的加载路径 -->
+<context-param>
+	<param-name>contextConfigLocation</param-name>
+	<param-value>classpath:applicationContext.xml</param-value>
+</context-param>
+
+<!-- Spring监听器：是spring的核心监听器，是一定要配置的 -->
+<listener>
+	<listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+</listener>
+
+<!-- 添加对springmvc的支持 -->
+<servlet>
+	<servlet-name>springMVC</servlet-name>
+	<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+	<init-param>
+		<param-name>contextConfigLocation</param-name>
+		<param-value>classpath:spring-mvc.xml</param-value>
+	</init-param>
+	<load-on-startup>1</load-on-startup>
+</servlet>
+<servlet-mapping>
+	<servlet-name>springMVC</servlet-name>
+	<url-pattern>*.action</url-pattern>
+</servlet-mapping>
+
+<!-- 编码过滤器 -->
+<filter>
+	<filter-name>encodingFilter</filter-name>
+	<filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+	<init-param>
+		<param-name>encoding</param-name>
+		<param-value>UTF-8</param-value>
+	</init-param>
+</filter>
+<filter-mapping>
+	<filter-name>encodingFilter</filter-name>
+	<url-pattern>/*</url-pattern>
+</filter-mapping>
+
+<!-- shiro过滤器定义 -->
+<filter>
+	<filter-name>shiroFilter</filter-name>
+	<filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+	<init-param>
+		<!-- 该值为false,表示生命周期由SpringApplicationContext管理,设置为true则表示由ServletContainer管理 -->
+		<param-name>targetFilterLifecycle</param-name>
+		<param-value>true</param-value>
+	</init-param>
+</filter>
+<filter-mapping>
+	<filter-name>shiroFilter</filter-name>
+	<url-pattern>/*</url-pattern>
+</filter-mapping>
+
+4. 编写spring配置文件：applicationContext.xml
+扫描service层： context:component-scan
+配置数据源：DriverManagerDataSource》属性：driverClassName、url、username、password
+配置mybatis的SqlSessionFactory：SqlSessionFactoryBean》属性：dataSource、mapperLocations、configLocation
+mybatis的dao层扫描：MapperScannerConfigurer》属性：basePackage、sqlSessionFactoryBeanName
+事务管理：DataSourceTransactionManager》属性：dataSource
+事务通知属性：tx:advice id="txAdvice" transaction-manager="transactionManager"
+配置事务切面：aop:config
+shiro的自定义realm：<bean id="myRealm" class="com.yjy.realm.MyRealm"/> 
+shiro的安全管理器：DefaultWebSecurityManager》属性：realm
+shiro过滤器：ShiroFilterFactoryBean》属性：securityManager、loginUrl、unauthorizedUrl、filterChainDefinitions
+Shiro内部lifecycle函数的bean执行：LifecycleBeanPostProcessor
+开启Shiro注解：DefaultAdvisorAutoProxyCreator
+        
+	<!-- 自动扫描 -->
+	<context:component-scan base-package="com.yjy.service" />
+	
+	<!-- 配置数据源 -->
+	<bean id="dataSource"
+		class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+		<property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+		<property name="url" value="jdbc:mysql://localhost:3306/db_shiro"/>
+		<property name="username" value="root"/>
+		<property name="password" value="123456"/>
+	</bean>
+
+	<!-- 配置mybatis的sqlSessionFactory -->
+	<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<!-- 自动扫描mappers.xml文件 -->
+		<property name="mapperLocations" value="classpath:com/yjy/mappers/*.xml"></property>
+		<!-- mybatis配置文件 -->
+		<property name="configLocation" value="classpath:mybatis-config.xml"></property>
+	</bean>
+
+	<!-- DAO接口所在包名，Spring会自动查找其下的类 -->
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.yjy.dao" />
+		<property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"></property>
+	</bean>
+
+	<!-- (事务管理)transaction manager, use JtaTransactionManager for global tx -->
+	<bean id="transactionManager"
+		class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+	
+	<!-- 自定义Realm -->
+	<bean id="myRealm" class="com.yjy.realm.MyRealm"/>  
+	
+	<!-- 安全管理器 -->
+	<bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">  
+  	  <property name="realm" ref="myRealm"/>  
+	</bean>  
+	
+	<!-- Shiro过滤器 -->
+	<bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">  
+	    <!-- Shiro的核心安全接口,这个属性是必须的 -->  
+	    <property name="securityManager" ref="securityManager"/>
+	    <!-- 身份认证失败，则跳转到登录页面的配置 -->  
+	    <property name="loginUrl" value="/index.jsp"/>
+	    <!-- 权限认证失败，则跳转到指定页面 -->  
+	    <property name="unauthorizedUrl" value="/unauthor.jsp"/>  
+	    <!-- Shiro连接约束配置,即过滤链的定义 -->  
+	    <property name="filterChainDefinitions">  
+	        <value>
+	        	<!-- 登录的页面是不需要进行检测处理的 -->
+	            	/login=anon
+	           	<!-- 该路径需要admin角色才能通过 -->
+			/admin/**=roles[admin]
+	            	<!-- 该路径需要 admin||teacher 角色才能通过 -->
+			/teacher/**=roles["admin,teacher"]
+	            	<!-- 该路径需要 admin||teacher||student 角色才能通过 -->
+			/student/**=roles["admin,teacher,student"]
+			<!-- 当前路径下需要 admin&&teacher&&student 的角色 -->
+			/alluser/**=roles[admin],roles[teacher],roles[student]
+			<!-- 对指定页面登录之后进行权限的检测处理，需要student:create的权限 -->
+			/welcome.jsp=authc,perms[student:create]
+	        </value>  
+	    </property>
+	</bean>  
+	
+	<!-- 保证实现了Shiro内部lifecycle函数的bean执行 -->  
+	<bean id="lifecycleBeanPostProcessor" class="org.apache.shiro.spring.LifecycleBeanPostProcessor"/>  
+	
+	<!-- 开启Shiro注解 -->
+	<bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator" depends-on="lifecycleBeanPostProcessor"/>  
+  		<bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">  
+  	  <property name="securityManager" ref="securityManager"/>  
+    </bean>  
+  
+	<!-- 配置事务通知属性 -->  
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">  
+        <!-- 定义事务传播属性 -->  
+        <tx:attributes>  
+            <tx:method name="insert*" propagation="REQUIRED" />  
+            <tx:method name="update*" propagation="REQUIRED" />  
+            <tx:method name="edit*" propagation="REQUIRED" />  
+            <tx:method name="save*" propagation="REQUIRED" />  
+            <tx:method name="add*" propagation="REQUIRED" />  
+            <tx:method name="new*" propagation="REQUIRED" />  
+            <tx:method name="set*" propagation="REQUIRED" />  
+            <tx:method name="remove*" propagation="REQUIRED" />  
+            <tx:method name="delete*" propagation="REQUIRED" />  
+            <tx:method name="change*" propagation="REQUIRED" />  
+            <tx:method name="check*" propagation="REQUIRED" />  
+            <tx:method name="get*" propagation="REQUIRED" read-only="true" />  
+            <tx:method name="find*" propagation="REQUIRED" read-only="true" />  
+            <tx:method name="load*" propagation="REQUIRED" read-only="true" />  
+            <tx:method name="*" propagation="REQUIRED" read-only="true" />  
+        </tx:attributes>  
+    </tx:advice>  
+  
+    <!-- 配置事务切面 -->  
+    <aop:config>  
+        <aop:pointcut id="serviceOperation"  
+            expression="execution(* com.yjy.service.*.*(..))" />  
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="serviceOperation" />  
+    </aop:config>  
+
+5 编写log4j.properties
+log4j.rootLogger=DEBUG, Console  
+  
+#Console  
+log4j.appender.Console=org.apache.log4j.ConsoleAppender  
+log4j.appender.Console.layout=org.apache.log4j.PatternLayout  
+log4j.appender.Console.layout.ConversionPattern=%d [%t] %-5p [%c] - %m%n  
+  
+log4j.logger.java.sql.ResultSet=INFO  
+log4j.logger.org.apache=INFO  
+log4j.logger.java.sql.Connection=DEBUG  
+log4j.logger.java.sql.Statement=DEBUG  
+log4j.logger.java.sql.PreparedStatement=DEBUG  
+
+
+5. 编写mybatis配置文件：
+<typeAliases>
+	<package name="com.yjy.entity"/><!-- 别名 -->
+</typeAliases>
+
+6. 编写springmvc配置文件：
+扫描controller层：<context:component-scan base-package="com.yjy.controller" />
+试图解析器：InternalResourceViewResolver》属性：prefix、suffix
+
+7. 新建数据库：
+角色表：t_role》id、roleName
+权限表：t_permission》id、permissionName、roleId
+alter table t_permission add constraint FK_ProleId foreign key (roleId) references t_role(id);
+用户表：t_user》id、userName、password、roleId
+alter table t_user add constraint FK_UroleId foreign key (roleId) references t_role(id);
+
+8.新建User类及其映射文件
+public class User {
+	private Integer id;
+	private String userName;
+	private String password;
+}
+<mapper namespace="com.yjy.dao.UserDao">
+
+	<resultMap type="User" id="UserResult">
+		<result property="id" column="id"/>
+		<result property="userName" column="userName"/>
+		<result property="password" column="password"/>
+	</resultMap>
+	
+	<select id="getByUserName" parameterType="String" resultMap="UserResult">
+		select * from t_user where userName=#{userName}
+	</select>
+	
+	<select id="getRoles" parameterType="String" resultType="String">
+		select r.roleName from t_user u,t_role r where u.roleId=r.id and u.userName=#{userName}
+	</select>
+	
+	<select id="getPermissions" parameterType="String" resultType="String">
+		select p.permissionName from t_user u,t_role r,t_permission p where u.roleId=r.id and p.roleId=r.id and u.userName=#{userName}
+	</select>
+
+</mapper> 
+
+9. 新建UserDao接口：
+public User getByUserName(String userName); //通过用户名查询用户
+public Set<String> getRoles(String userName); //通过用户名查询角色信息
+public Set<String> getPermissions(String userName); //通过用户名查询权限信息
+
+10. 新建UserService接口及其实现类：
+public User getByUserName(String userName); //通过用户名查询用户
+public Set<String> getRoles(String userName); //通过用户名查询角色信息
+public Set<String> getPermissions(String userName); //通过用户名查询权限信息
+
+@Service("userService")
+public class UserServiceImpl implements UserService{
+
+	@Resource
+	private UserDao userDao;
+	
+	public User getByUserName(String userName) {
+		return userDao.getByUserName(userName);
+	}
+
+	public Set<String> getRoles(String userName) {
+		return userDao.getRoles(userName);
+	}
+
+	public Set<String> getPermissions(String userName) {
+		return userDao.getPermissions(userName);
+	}
+}
+
+11. 新建自定义MyRealm类(需要继承AuthorizingRealm类，并实现其两个方法)：
+
+public class MyRealm extends AuthorizingRealm {
+
+	@Resource
+	private UserService userService;
+	
+	/**
+	 * 为当前登录用户授予角色和权限
+	 */
+	@Override
+	protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
+		String userName = (String)principals.getPrimaryPrincipal();
+		SimpleAuthorizationInfo authorizationInfo = new SimpleAuthorizationInfo();
+		authorizationInfo.setRoles(userService.getRoles(userName));
+		authorizationInfo.setStringPermissions(userService.getPermissions(userName));
+		return authorizationInfo;
+	}
+
+	/**
+	 * 验证当前登录的用户
+	 */
+	@Override
+	protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
+		String userName = (String)token.getPrincipal();
+		User user = userService.getByUserName(userName);
+		if(user != null){
+			AuthenticationInfo authcInfo=new SimpleAuthenticationInfo(user.getUserName(),user.getPassword(),"suerfly");
+			return authcInfo;
+		}
+		return null;
+	}
+}
+
+
+12. 新建controller类：
+@Controller
+@RequestMapping("/user")
+public class UserController {
+	//用户登录
+	@RequestMapping("/login")
+	public String login(User user, HttpServletRequest request){
+		Subject subject = SecurityUtils.getSubject();
+		UsernamePasswordToken token=new UsernamePasswordToken(user.getUserName(), EncryptionUtil.md5(user.getPassword(), "suerfly"));
+		try{
+			subject.login(token);
+			Session session=subject.getSession();
+			System.out.println("sessionId:"+session.getId());
+			System.out.println("sessionHost:"+session.getHost());
+			System.out.println("sessionTimeout:"+session.getTimeout());
+			session.setAttribute("info", "session的数据");
+			return "redirect:/success.jsp";
+		}catch(Exception e){
+			e.printStackTrace();
+			request.setAttribute("user", user);
+			request.setAttribute("errorMsg", "用户名或密码错误！");
+			return "index";
+		}
+	}
+}
+
+13. 编写加密算法：
+public class EncryptionUtil {
+
+	//base64加密
+	public static String encBase64(String str){
+		return Base64.encodeToString(str.getBytes());
+	}
+	
+	//base64解密
+	public static String decBase64(String str){
+		return Base64.decodeToString(str);
+	}
+	
+	//Md5加密
+	public static String md5(String str,String salt){
+		return new Md5Hash(str,salt).toString();
+	}
+	
+	public static void main(String[] args) {
+		String password="123456";
+		System.out.println("Base64加密："+EncryptionUtil.encBase64(password));
+		System.out.println("Base64解密："+EncryptionUtil.decBase64(EncryptionUtil.encBase64(password)));
+		
+		System.out.println("Md5加密："+EncryptionUtil.md5(password, "suerfly"));
+	}
+}
+
+13. jsp页面
+index.jsp页面：
+<form action="${pageContext.request.contextPath }/user/login.action" method="post">
+	userName:<input type="text" name="userName" value="${user.userName }"/><br/>
+	password:<input type="password" name="password" value="${user.password }"><br/>
+	<input type="submit" value="login"/><font color="red">${errorMsg }</font>
+</form>
+
+success.jsp页面：
+<%@ taglib prefix="shiro" uri="http://shiro.apache.org/tags" %> //shiro标签
+${info }
+欢迎你!
+<shiro:hasRole name="admin">
+	欢迎有admin角色的用户！<shiro:principal/>
+</shiro:hasRole>
+<shiro:hasPermission name="student:create">
+	欢迎有student:create权限的用户！<shiro:principal/>
+</shiro:hasPermission>
+
+
+测试：
+1）输入java1234 123456 改uri：admin，能通过
+2）运行项目后直接在uri输入：admin，返回ShiroWeb/index.jsp页面
+
