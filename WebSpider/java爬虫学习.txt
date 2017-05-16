@@ -1,0 +1,53 @@
+﻿教程：
+https://my.oschina.net/u/2519530/blog/597359
+
+http://www.jb51.net/article/42048.htm //为测试
+http://www.cnblogs.com/jinxiaohang/p/6637209.html
+http://blog.csdn.net/jeffleo/article/details/53135026
+
+
+
+
+爬虫介绍：
+for each 链接 in 当前页面所有链接 {
+	if(如果本链接是我们想要的 || 这个链接从未访问过) {
+		处理对本地链接
+		把本链接设置为已访问
+	}
+}
+
+知识点：
+http请求：
+  有两种在本地的文件中发起请求获取资源的方法：Java提供的java.net包中APIs；选用第三方工具(如HttpClient)
+内容解析器：(获取的都是页面，一大串的HTML页面代码)
+  两种方式：正则表达式；第三方解析器(jsoup，htmlparse等)
+
+写httpclient的使用方法步骤:
+1）用静态方法来获取httpclient实例
+2）获取httpGet实例：
+	httpclient封装了http的各种方法，get只是其中一个，还有POST,HEAD之类的都可以
+3）执行请求获取httpResponse响应
+	执行就是httpclient实例execute httpget实例
+4）解析response响应的内容
+	第三步返回的结果就是响应
+	解析响应呢，有两种方法，一种是httpclient提供的httpentity实例解析的，还有一种是从输入流inputstream中获取，例子中是从inputstream中获取
+5）记得关闭资源
+
+
+
+Jsoup -- 网络爬虫解析器：
+jsoup 是一款Java 的HTML解析器，可直接解析某个URL地址、HTML文本内容。它提供了一套非常省力的API，可通过DOM，CSS以及类似于jQuery的操作方法来取出和操作数据。
+主要功能：
+1》从一个URL，文件或字符串中解析html
+2》使用DOM或CSS选择器查找、取出数据
+3》可操作html元素、属性、文本
+
+宽度优先爬虫：
+路径顺序
+A->B
+A->C
+A->D
+A->E->H->I
+A->F->G
+按照宽度遍历算法，上图的遍历顺序为：A->B->C->D->E->F->H->G->I，这样一层一层的遍历下去
+

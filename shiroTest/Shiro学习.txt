@@ -168,6 +168,30 @@ public void testIsPermitted() {
 }
 
 
+Shiro过滤器：
+anon(例如/admin/**=anon)：anon后面没有参数，表示该路径下的资源可以匿名使用
+authc(例如/admin/user/**=authc)：authc后面没有参数，表示该路径下的资源需要认证(登录)才能使用，FormAuthenticationFilter是表单认证，没有参数。
+perms(例如/admin/user/**=perms[user:add:*]或perms["user:add:*,user:modify:*"])：当有多个参数时必须每个参数都通过才通过，想当于isPermitedAll()方法。
+user(例如/admin/user/**=user)：表示必须存在用户, 身份认证通过或通过记住我认证通过的可以访问，当登入操作时不做检查。
+roles(例如/admin/user/**=roles[admin]或roles["admin,guest"])：每个参数通过才算通过，相当于hasAllRoles()方法。
+
+开启controller类aop支持
+对系统中类的方法给用户授权，建议在controller层进行方法授权，在springmvc.xml中配置:
+   <!-- 开启aop，对类代理 -->
+   <aop:config proxy-target-class="true"> </aop:config>
+   <!-- 开启shiro注解支持 -->
+   <bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+       <property name="securityManager" ref="securityManager" />
+   </bean>
+
+在controller方法中添加注解：
+@RequestMapping("/queryItems")
+@RequiresPermissions("item:query")
+public ModelAndView queryItems() throws Exception {
+	...
+}
+
+
 注解式授权：
 @RequiresAuthentication：要求当前Subject已经在当前的session中被验证通过才能被访问或调用。
 @RequiresGuest：要求当前的Subject是一个"guest"，也就是说，他们必须是在之前的session中没有被验证或被记住才能被访问或调用
